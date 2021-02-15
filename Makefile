@@ -1,4 +1,4 @@
-include my.stage.env
+include stage.env
 export
 
 
