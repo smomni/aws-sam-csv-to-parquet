@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  python3.8
+
+  SAM template for lambda-app
+
+
+Parameters:
+  Environment:
+    Description: Name of the AWS environment
+    Type: String
+  Application:
+    Description: Name of the application
+    Type: String
+    AllowedPattern: "[a-z0-9-]+"
+  Bucket:
+    Description: S3 bucket name
+    Type: String
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 1024  # 1 GB
+
+Resources:
+  CsvToParquetFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      PackageType: Image
+      Events:
+        ObjectCreated:
+          Type: S3
+          Properties:
+            Bucket: !Ref S3Bucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: raw/
+      Policies:
+        - Statement:
+            - Sid: ReadInput
+              Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: 
+                - !Sub "arn:aws:s3:::${Bucket}/raw/*"
+            - Sid: WriteOutput
+              Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: 
+                - !Sub "arn:aws:s3:::${Bucket}/transformed/*"
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./lambda_app
+      DockerTag: python3.8-v1
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref Bucket
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Application
+          Value: !Ref Application
+        - Key: Environment
+          Value: !Ref Environment
+  CsvToParquetFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: CsvToParquetFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${CsvToParquetFunction}
+      RetentionInDays: 30
+  CsvToParquetFunctionInputFilesMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CsvToParquetFunctionLogGroup
+      FilterPattern: "{ $.input_uri = * }"
+      MetricTransformations:
+        - MetricValue: 1
+          MetricNamespace: !Sub "${Application}-${Environment}"
+          MetricName: InputFiles
+    DependsOn: CsvToParquetFunctionLogGroup
+  CsvToParquetFunctionOutputFilesMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CsvToParquetFunctionLogGroup
+      FilterPattern: "{ $.output_uri = * }"
+      MetricTransformations:
+        - MetricValue: 1
+          MetricNamespace: !Sub "${Application}-${Environment}"
+          MetricName: OutputFiles
+    DependsOn: CsvToParquetFunctionLogGroup
+  CsvToParquetFunctionOutputRowsMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CsvToParquetFunctionLogGroup
+      FilterPattern: "{ $.output_uri = * }"
+      MetricTransformations:
+        - MetricValue: $.row_count
+          MetricNamespace: !Sub "${Application}-${Environment}"
+          MetricName: OutputRows
+    DependsOn: CsvToParquetFunctionLogGroup
+
+Outputs:
+  CsvToParquetFunction:
+    Description: "CSV-to-Parquet Lambda Function ARN"
+    Value: !GetAtt CsvToParquetFunction.Arn
+  CsvToParquetFunctionIamRole:
+    Description: "Implicit IAM Role created for CSV-to-Parquet function"
+    Value: !GetAtt CsvToParquetFunctionRole.Arn

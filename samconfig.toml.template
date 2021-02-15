@@ -1,0 +1,8 @@
+version=0.1
+[default.deploy.parameters]
+stack_name = "$STACK_NAME"
+region = "$AWS_REGION"
+image_repository = "$IMAGE_REPOSITORY"
+confirm_changeset = "$CONFIRM_CHANGESET"
+capabilities = "$CAPABILITIES"
+parameter_overrides = "Environment=$ENVIRONMENT Application=$STACK_NAME Bucket=$BUCKET_NAME"

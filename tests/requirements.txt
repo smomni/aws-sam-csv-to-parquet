@@ -1,0 +1,9 @@
+pytest
+pytest-mock
+pytest-dotenv
+pytest-datadir
+faker
+pandas
+boto3
+pyarrow
+s3fs

@@ -1,0 +1,5 @@
+requests
+pandas
+pyarrow
+s3fs
+python-json-logger
